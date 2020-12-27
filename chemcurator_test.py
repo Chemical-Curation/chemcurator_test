@@ -187,9 +187,13 @@ def get_docker_compose():
             )
         )
     )
-    dc['services']['web']['container_name'] = 'resolver'
+    # dc['services']['web']['container_name'] = 'resolver'
     dc['services']['web']['ports'] = ["${EX_RESOLVER_PORT}:${RESOLVER_PORT}"]
-    dc['services']['web']['build'] = {"context": "./resolver"}
+    dc['services']['web']['build'] = {"context": "./resolver/"}
+    dc['services']['web']['volumes'] = [
+        "./resolver/migrations:/code/migrations",
+        "./resolver/resolver:/code/resolver",
+    ]
     dc['services']['db']['ports'] = [
         "${EX_POSTGRES_DB_PORT}:${POSTGRES_DB_PORT}"
     ]
@@ -197,9 +201,7 @@ def get_docker_compose():
     dc['services']['db']['volumes'] = [
         f"{user}_resolver_postgres_data:/var/lib/postgresql/data/"
     ]
-    dc['volumes'] = {
-        f"{user}_resolver_postgres_data": None
-    }
+    dc['volumes'] = {f"{user}_resolver_postgres_data": None}
     return dc
 
 
