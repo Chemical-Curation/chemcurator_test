@@ -174,12 +174,15 @@ def get_env():
         env.extend([i.rstrip('\n') for i in open(f"{path}/template.env")])
     env.extend(["", "#" * 60, "# chemcurator_test settings", "#" * 60, ""])
     env.extend([f"{k}={v}" for k, v in get_exposed_ports().items()])
+    # override localhost -> cc_django_1
+    env.append('VUE_APP_API_URL="http://cc_django:8000"')
 
     return env
 
 
 def get_docker_compose():
 
+    # load and heavily edit the resolver docker-compose.yml
     dc = yaml.safe_load(
         open(
             os.path.join(
@@ -187,13 +190,14 @@ def get_docker_compose():
             )
         )
     )
-    # dc['services']['web']['container_name'] = 'resolver'
+    # replace ports, make context / volume paths relative to here
     dc['services']['web']['ports'] = ["${EX_RESOLVER_PORT}:${RESOLVER_PORT}"]
     dc['services']['web']['build'] = {"context": "./resolver/"}
     dc['services']['web']['volumes'] = [
         "./resolver/migrations:/code/migrations",
         "./resolver/resolver:/code/resolver",
     ]
+    # replace ports, make volume name user specific
     dc['services']['db']['ports'] = [
         "${EX_POSTGRES_DB_PORT}:${POSTGRES_DB_PORT}"
     ]
@@ -202,6 +206,21 @@ def get_docker_compose():
         f"{user}_resolver_postgres_data:/var/lib/postgresql/data/"
     ]
     dc['volumes'] = {f"{user}_resolver_postgres_data": None}
+
+    # add chemcurator_django service
+    dc['services']['cc_django'] = {
+        'build': {'context': 'chemcurator_django'},
+        'env_file': [".env"],
+        'ports': ["${EX_DJANGO_APP_PORT}:8000"],
+    }
+
+    # add chemcurator_vuejs service
+    dc['services']['cc_vue'] = {
+        'build': {'context': 'chemcurator_vuejs'},
+        'env_file': [".env"],
+        'ports': ["${EX_VUE_APP_PORT}:8080"],
+    }
+
     return dc
 
 
