@@ -1,0 +1,2 @@
+# base URL where the repos. live
+GIT_BASE_URL = "https://{auth}github.com/Chemical-Curation/"
