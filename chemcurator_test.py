@@ -175,7 +175,7 @@ def get_env():
     env.extend(["", "#" * 60, "# chemcurator_test settings", "#" * 60, ""])
     env.extend([f"{k}={v}" for k, v in get_exposed_ports().items()])
     # override localhost -> cc_django_1
-    env.append('VUE_APP_API_URL="http://cc_django:8000"')
+    env.append('VUE_APP_API_URL=http://cc_django:8000')
 
     return env
 
