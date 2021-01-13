@@ -69,6 +69,14 @@ TEST_BRANCH.update(getattr(CONFIG, "TEST_BRANCH", {}))
 CMDS = []  # list of "commands" the test env. can run
 
 
+class IndentLists(yaml.Dumper):
+    """https://stackoverflow.com/a/39681672/1072212
+    Default is correct to spec. but odd looking.
+    """
+    def increase_indent(self, flow=False, indentless=False):
+        return super(IndentLists, self).increase_indent(flow, False)
+
+
 def _config(key):
     return os.environ.get(key) or getattr(CONFIG, key, None)
 
@@ -93,7 +101,8 @@ def git(repo, cmd):
     if cmd.startswith("clone "):
         cmd = f"git {cmd}"
     else:
-        cmd = f"git -C {repo} {cmd}"
+        # don't assume git is new enough to support -C path
+        cmd = f"cd {repo}; git {cmd}"
     print(cmd)
     subprocess.Popen(cmd, shell=True).communicate()
 
@@ -121,7 +130,7 @@ def make_parser():
         ("list", []),
         ("co", ["repo", "branch"]),
         ("build", []),
-        ("up", []),
+        ("config", []),
         ("down", []),
     ]
     for cmd, params in table:
@@ -180,16 +189,36 @@ def get_env():
     return env
 
 
+def dict_merge(a, b, path=None):
+    """merges b into a
+    https://stackoverflow.com/a/7205107/1072212
+    """
+    if path is None:
+        path = []
+    for key in b:
+        if key in a:
+            if isinstance(a[key], dict) and isinstance(b[key], dict):
+                dict_merge(a[key], b[key], path + [str(key)])
+            elif a[key] == b[key]:
+                pass  # same leaf value
+            else:
+                print(f"{key}: {b[key]} overwrites {a[key]}")
+                a[key] = b[key]
+        else:
+            a[key] = b[key]
+    return a
+
+
 def get_docker_compose():
 
-    # load and heavily edit the resolver docker-compose.yml
-    dc = yaml.safe_load(
-        open(
-            os.path.join(
-                os.path.dirname(__file__), 'resolver', 'docker-compose.yml'
-            )
-        )
-    )
+    # load and heavily edit docker-compose.ymls
+    dc = {}
+    for dcy in (
+        'resolver/docker-compose.yml',
+        'chemcurator_django/docker-compose.yaml',
+    ):
+        dict_merge(dc, yaml.safe_load(open(dcy)))
+
     # replace ports, make context / volume paths relative to here
     dc['services']['web']['ports'] = ["${EX_RESOLVER_PORT}:${RESOLVER_PORT}"]
     dc['services']['web']['build'] = {"context": "./resolver/"}
@@ -207,15 +236,15 @@ def get_docker_compose():
     ]
     dc['volumes'] = {f"{user}_resolver_postgres_data": None}
 
-    # add chemcurator_django service
-    dc['services']['cc_django'] = {
-        'build': {'context': 'chemcurator_django'},
-        'env_file': [".env"],
-        'ports': ["${EX_DJANGO_APP_PORT}:8000"],
-    }
+    # update chemcurator_django service
+    dc['services']['chemreg-admin']['build'][
+        'context'
+    ] = './chemcurator_django/'
+    dc['services']['chemreg-api']['build']['context'] = './chemcurator_django/'
+    dc['services']['chemreg-api']['ports'] = ["${EX_DJANGO_APP_PORT}:8000"]
 
     # add chemcurator_vuejs service
-    dc['services']['cc_vue'] = {
+    dc['services']['chemreg-ui'] = {
         'build': {'context': 'chemcurator_vuejs'},
         'env_file': [".env"],
         'ports': ["${EX_VUE_APP_PORT}:8080"],
@@ -237,7 +266,7 @@ def cmd_build(opt):
     old_cd = os.getcwd()
 
 
-def cmd_up(opt):
+def cmd_config(opt):
     with open('.env', 'w') as out:
         ts = time.asctime()
         out.write(f"# AUTOMATICALLY GENERATED {ts}\n")
@@ -247,7 +276,11 @@ def cmd_up(opt):
         ts = time.asctime()
         out.write(f"# AUTOMATICALLY GENERATED {ts}\n")
         out.write("# DO NOT EDIT\n\n")
-        out.write(yaml.dump(get_docker_compose()))
+        out.write(
+            yaml.dump(get_docker_compose(), indent=4, Dumper=IndentLists)
+        )
+    print(".env and docker-compose.yml written, run:")
+    print("docker-compose config")
 
 
 def cmd_down(opt):
