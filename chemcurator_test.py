@@ -73,6 +73,7 @@ class IndentLists(yaml.Dumper):
     """https://stackoverflow.com/a/39681672/1072212
     Default is correct to spec. but odd looking.
     """
+
     def increase_indent(self, flow=False, indentless=False):
         return super(IndentLists, self).increase_indent(flow, False)
 
@@ -165,27 +166,44 @@ def get_options(args=None):
 
 
 def get_exposed_ports():
+    """External (host) ports - not sure we need all these"""
     base_port = get_base_port()
     ports = [
-        'POSTGRES_DB_PORT',
-        'RESOLVER_PORT',
-        'VUE_APP_PORT',
-        'DJANGO_APP_PORT',
+        'EXT_POSTGRES_DB_PORT',
+        'EXT_RESOLVER_PORT',
+        'EXT_VUE_APP_PORT',
+        'EXT_DJANGO_API_PORT',
     ]
 
-    return {'EX_' + i: base_port + n for n, i in enumerate(ports)}
+    return {i: base_port + n for n, i in enumerate(ports)}
 
 
 def get_env():
-    env = []
+    """Collect .env vars from sub-projects, then add test deply vars"""
+    user = os.environ['USER']
+    env = [f"COMPOSE_PROJECT_NAME={user}_CR"]
     for path in DOCKER_REPOS:
         env.extend(["", "#" * 60, f"# template.env from {path}", "#" * 60, ""])
         env.extend([i.rstrip('\n') for i in open(f"{path}/template.env")])
-    env.extend(["", "#" * 60, "# chemcurator_test settings", "#" * 60, ""])
-    env.extend([f"{k}={v}" for k, v in get_exposed_ports().items()])
-    # override localhost -> cc_django_1
-    env.append('VUE_APP_API_URL=http://cc_django:8000')
 
+    env.extend(["", "#" * 60, "# chemcurator_test settings", "#" * 60, ""])
+    # exposed ports
+    exposed = get_exposed_ports()
+    env.extend([f"{k}={v}" for k, v in exposed.items()])
+    # API as seen from browser
+    env.append("VUE_APP_API_URL=http://localhost:${EXT_DJANGO_API_PORT}")
+
+    secret = lambda: sha256(str(env).encode('utf8')).hexdigest()
+    env.append(f"ADMIN_SECRET_KEY={secret()}")
+    env.append(f"API_SECRET_KEY={secret()}")
+    env.append(f"SECRET_KEY={secret()}")
+    env.extend(
+        [
+            "CHEMREG_DB_USER=chemuser",
+            "CHEMREG_DB_PASSWORD=chempass",
+            "CHEMREG_DB_DB=chemreg",
+        ]
+    )
     return env
 
 
@@ -211,8 +229,24 @@ def dict_merge(a, b, path=None):
 
 def get_docker_compose():
 
+    user = os.environ['USER']
     # load and heavily edit docker-compose.ymls
-    dc = {}
+    dc = {
+        'services': {
+            'chemreg-db': {  # not included in django / resolver compositions
+                'image': "postgres:12-alpine",
+                'volumes': [
+                    f"{user}_chemreg_postgres_data:/var/lib/postgresql/data/",
+                ],
+                'environment': {
+                    'POSTGRES_USER': "${CHEMREG_DB_USER}",
+                    'POSTGRES_PASSWORD': "${CHEMREG_DB_PASSWORD}",
+                    'POSTGRES_DB': "${CHEMREG_DB_DB}",
+                },
+            }
+        },
+    }
+
     for dcy in (
         'resolver/docker-compose.yml',
         'chemcurator_django/docker-compose.yaml',
@@ -220,7 +254,7 @@ def get_docker_compose():
         dict_merge(dc, yaml.safe_load(open(dcy)))
 
     # replace ports, make context / volume paths relative to here
-    dc['services']['web']['ports'] = ["${EX_RESOLVER_PORT}:${RESOLVER_PORT}"]
+    dc['services']['web']['ports'] = ["${EXT_RESOLVER_PORT}:${RESOLVER_PORT}"]
     dc['services']['web']['build'] = {"context": "./resolver/"}
     dc['services']['web']['volumes'] = [
         "./resolver/migrations:/code/migrations",
@@ -228,28 +262,35 @@ def get_docker_compose():
     ]
     # replace ports, make volume name user specific
     dc['services']['db']['ports'] = [
-        "${EX_POSTGRES_DB_PORT}:${POSTGRES_DB_PORT}"
+        "${EXT_POSTGRES_DB_PORT}:${POSTGRES_DB_PORT}"
     ]
-    user = os.environ['USER']
     dc['services']['db']['volumes'] = [
         f"{user}_resolver_postgres_data:/var/lib/postgresql/data/"
     ]
-    dc['volumes'] = {f"{user}_resolver_postgres_data": None}
 
     # update chemcurator_django service
     dc['services']['chemreg-admin']['build'][
         'context'
     ] = './chemcurator_django/'
     dc['services']['chemreg-api']['build']['context'] = './chemcurator_django/'
-    dc['services']['chemreg-api']['ports'] = ["${EX_DJANGO_APP_PORT}:8000"]
+    dc['services']['chemreg-api']['ports'] = ["${EXT_DJANGO_API_PORT}:8000"]
 
     # add chemcurator_vuejs service
     dc['services']['chemreg-ui'] = {
         'build': {'context': 'chemcurator_vuejs'},
         'env_file': [".env"],
-        'ports': ["${EX_VUE_APP_PORT}:8080"],
+        'ports': ["${EXT_VUE_APP_PORT}:8080"],
     }
 
+    for service in dc['services']:
+        dc['services'][service]['command'] = 'date'
+        dc['services'][service].pop('restart', None)
+
+    # deliberately replace any merged volumes section
+    dc['volumes'] = {
+        f"{user}_chemreg_postgres_data": None,
+        f"{user}_resolver_postgres_data": None,
+    }
     return dc
 
 
@@ -263,7 +304,8 @@ def cmd_co(opt):
 
 
 def cmd_build(opt):
-    old_cd = os.getcwd()
+    pass
+    # old_cd = os.getcwd()
 
 
 def cmd_config(opt):
