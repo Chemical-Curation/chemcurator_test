@@ -42,6 +42,7 @@ from pathlib import Path
 
 import yaml
 
+# places to collect template.env from
 DOCKER_REPOS = 'resolver', 'chemcurator_vuejs', 'chemcurator_django'
 
 try:
@@ -79,10 +80,12 @@ class IndentLists(yaml.Dumper):
 
 
 def _config(key):
+    """Get config from environment or CONFIG module"""
     return os.environ.get(key) or getattr(CONFIG, key, None)
 
 
 def get_base_port():
+    """Base port for host port usage"""
     if _config("BASE_PORT"):
         return int(_config("BASE_PORT"))
     return (
@@ -97,6 +100,7 @@ def get_base_port():
 
 
 def git(repo, cmd):
+    """Run a git command"""
     if isinstance(cmd, list):
         cmd = " ".join(cmd)
     if cmd.startswith("clone "):
@@ -108,17 +112,21 @@ def git(repo, cmd):
     subprocess.Popen(cmd, shell=True).communicate()
 
 
-# check repos are here, clone if not
-auth = _config("GIT_USER")
-token = _config("GIT_TOKEN")
-if auth is not None and token is not None:
-    auth = f"{auth}:{token}"
-for repo in TEST_BRANCH:
-    if not Path(repo).exists():
-        git(
-            repo,
-            ["clone", _config("GIT_BASE_URL").format(auth=auth or "") + repo],
-        )
+def get_repos():
+    """Check repos are here, clone if not."""
+    auth = _config("GIT_USER")
+    token = _config("GIT_TOKEN")
+    if auth is not None and token is not None:
+        auth = f"{auth}:{token}"
+    for repo in TEST_BRANCH:
+        if not Path(repo).exists():
+            git(
+                repo,
+                [
+                    "clone",
+                    _config("GIT_BASE_URL").format(auth=auth or "") + repo,
+                ],
+            )
 
 
 def make_parser():
@@ -197,13 +205,6 @@ def get_env():
     env.append(f"ADMIN_SECRET_KEY={secret()}")
     env.append(f"API_SECRET_KEY={secret()}")
     env.append(f"SECRET_KEY={secret()}")
-    env.extend(
-        [
-            "CHEMREG_DB_USER=chemuser",
-            "CHEMREG_DB_PASSWORD=chempass",
-            "CHEMREG_DB_DB=chemreg",
-        ]
-    )
     return env
 
 
@@ -233,15 +234,17 @@ def get_docker_compose():
     # load and heavily edit docker-compose.ymls
     dc = {
         'services': {
-            'chemreg-db': {  # not included in django / resolver compositions
+            # Not included in django / resolver compositions, this is the
+            # main DB, resolver has it's own.
+            'postgresql': {
                 'image': "postgres:12-alpine",
                 'volumes': [
                     f"{user}_chemreg_postgres_data:/var/lib/postgresql/data/",
                 ],
                 'environment': {
-                    'POSTGRES_USER': "${CHEMREG_DB_USER}",
-                    'POSTGRES_PASSWORD': "${CHEMREG_DB_PASSWORD}",
-                    'POSTGRES_DB': "${CHEMREG_DB_DB}",
+                    'POSTGRES_USER': "${SQL_USER}",
+                    'POSTGRES_PASSWORD': "${SQL_PASSWORD}",
+                    'POSTGRES_DB': "${SQL_DATABASE}",
                 },
             }
         },
@@ -283,8 +286,21 @@ def get_docker_compose():
     }
 
     for service in dc['services']:
-        dc['services'][service]['command'] = 'date'
         dc['services'][service].pop('restart', None)
+        # don't name the service this way, we want the COMPOSE_PROJECT_NAME
+        # mechanism to make it user unique
+        dc['services'][service].pop('image', None)
+
+    for service in dc['services']:
+        if service not in (
+            'postgresql',
+            'chemreg-api',
+            'chemreg-ui',
+            'pgbouncer',
+        ):
+            print(f"Deactivating {service}")
+            dc['services'][service]['entrypoint'] = 'date'
+            dc['services'][service]['command'] = ''
 
     # deliberately replace any merged volumes section
     dc['volumes'] = {
@@ -331,6 +347,7 @@ def cmd_down(opt):
 
 def main():
     opt = get_options()
+    get_repos()
     opt.func(opt)
 
 
