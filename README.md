@@ -7,7 +7,7 @@ can be clone with the info. in chemcurator_test_config.py.
 
 Copy chemcurator_test_config.py.template to chemcurator_test_config.py
 and edit appropriately.  For simplicity you can use a dedicated GitHub access
-token, so {auth} is replaced with <githubuser>:<accesstoken>.
+token, so {auth} is replaced with `<githubuser>:<accesstoken>`.
 chemcurator_test_config.py should not be shared or committed to version
 control.  BASE_PORT can be any port number, 9000 or 39000 or whatever.
 
