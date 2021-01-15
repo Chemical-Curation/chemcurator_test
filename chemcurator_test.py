@@ -200,6 +200,8 @@ def get_env():
     env.extend([f"{k}={v}" for k, v in exposed.items()])
     # API as seen from browser
     env.append("VUE_APP_API_URL=http://localhost:${EXT_DJANGO_API_PORT}")
+    # Resolver
+    env.append("RESOLUTION_URL=http://web:5000")
 
     secret = lambda: sha256(str(env).encode('utf8')).hexdigest()
     env.append(f"ADMIN_SECRET_KEY={secret()}")
@@ -301,8 +303,8 @@ def get_docker_compose():
             'chemreg-ui',
             'pgbouncer',
             'redis',
-            # 'web',   # resolver
-            # 'db',    # resolver db
+            'web',   # resolver
+            'db',    # resolver db
         ):
             print(f"Deactivating {service}")
             dc['services'][service]['entrypoint'] = 'date'
