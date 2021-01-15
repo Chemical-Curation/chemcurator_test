@@ -283,13 +283,15 @@ def get_docker_compose():
         'build': {'context': 'chemcurator_vuejs'},
         'env_file': [".env"],
         'ports': ["${EXT_VUE_APP_PORT}:8080"],
+        'command': ["npm", "run", "serve"]
     }
 
     for service in dc['services']:
         dc['services'][service].pop('restart', None)
         # don't name the service this way, we want the COMPOSE_PROJECT_NAME
         # mechanism to make it user unique
-        dc['services'][service].pop('image', None)
+        if 'build' in dc['services'][service]:
+            dc['services'][service].pop('image', None)
 
     for service in dc['services']:
         if service not in (
