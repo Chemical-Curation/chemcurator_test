@@ -294,11 +294,15 @@ def get_docker_compose():
             dc['services'][service].pop('image', None)
 
     for service in dc['services']:
+        # disable services, currently no services are disabled
         if service not in (
             'postgresql',
             'chemreg-api',
             'chemreg-ui',
             'pgbouncer',
+            'redis',
+            # 'web',   # resolver
+            # 'db',    # resolver db
         ):
             print(f"Deactivating {service}")
             dc['services'][service]['entrypoint'] = 'date'
