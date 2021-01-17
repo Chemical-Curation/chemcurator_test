@@ -179,6 +179,7 @@ def get_exposed_ports():
     ports = [
         'EXT_VUE_APP_PORT',
         'EXT_DJANGO_API_PORT',
+        'EXT_DJANGO_ADMIN_PORT',
         'EXT_KETCHER_PORT',
         # 'EXT_MARVIN_PORT',  # can't pull image without auth
     ]
@@ -275,11 +276,14 @@ def get_docker_compose():
         f"{user}_resolver_postgres_data:/var/lib/postgresql/data/"
     ]
 
-    # update chemcurator_django service
+    # update chemcurator_django services
     dc['services']['chemreg-admin']['build'][
         'context'
     ] = './chemcurator_django/'
     dc['services']['chemreg-api']['build']['context'] = './chemcurator_django/'
+    dc['services']['chemreg-admin']['ports'] = [
+        "${EXT_DJANGO_ADMIN_PORT}:8000"
+    ]
     dc['services']['chemreg-api']['ports'] = ["${EXT_DJANGO_API_PORT}:8000"]
 
     # add chemcurator_vuejs service
@@ -314,8 +318,10 @@ def get_docker_compose():
     for service in dc['services']:
         # disable services, currently no services are disabled
         if service not in (
+            'chemreg-admin',
             'chemreg-api',
             'chemreg-ketcher',
+            'chemreg-marvin',
             'chemreg-ui',
             'db',  # resolver DB
             'pgbouncer',
