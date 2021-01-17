@@ -177,10 +177,10 @@ def get_exposed_ports():
     """External (host) ports - not sure we need all these"""
     base_port = get_base_port()
     ports = [
-        'EXT_POSTGRES_DB_PORT',
-        'EXT_RESOLVER_PORT',
         'EXT_VUE_APP_PORT',
         'EXT_DJANGO_API_PORT',
+        'EXT_KETCHER_PORT',
+        # 'EXT_MARVIN_PORT',  # can't pull image without auth
     ]
 
     return {i: base_port + n for n, i in enumerate(ports)}
@@ -196,11 +196,15 @@ def get_env():
 
     env.extend(["", "#" * 60, "# chemcurator_test settings", "#" * 60, ""])
     # exposed ports
-    exposed = get_exposed_ports()
-    env.extend([f"{k}={v}" for k, v in exposed.items()])
+    exposed = [f"{k}={v}" for k, v in get_exposed_ports().items()]
+    env.extend(exposed)
+    print('\n'.join(exposed))
     # API as seen from browser
     env.append("VUE_APP_API_URL=http://localhost:${EXT_DJANGO_API_PORT}")
-    # Resolver
+    env.append("VUE_APP_KETCHER_URL=http://localhost:${EXT_KETCHER_PORT}")
+    # not without license
+    # env.append("VUE_APP_MARVIN_URL=http://localhost:${EXT_MARVIN_PORT}")
+    # Resolver, as seen from API container
     env.append("RESOLUTION_URL=http://web:5000")
 
     secret = lambda: sha256(str(env).encode('utf8')).hexdigest()
@@ -259,16 +263,14 @@ def get_docker_compose():
         dict_merge(dc, yaml.safe_load(open(dcy)))
 
     # replace ports, make context / volume paths relative to here
-    dc['services']['web']['ports'] = ["${EXT_RESOLVER_PORT}:${RESOLVER_PORT}"]
+    dc['services']['web'].pop('ports', None)
     dc['services']['web']['build'] = {"context": "./resolver/"}
     dc['services']['web']['volumes'] = [
         "./resolver/migrations:/code/migrations",
         "./resolver/resolver:/code/resolver",
     ]
     # replace ports, make volume name user specific
-    dc['services']['db']['ports'] = [
-        "${EXT_POSTGRES_DB_PORT}:${POSTGRES_DB_PORT}"
-    ]
+    dc['services']['db'].pop('ports', None)
     dc['services']['db']['volumes'] = [
         f"{user}_resolver_postgres_data:/var/lib/postgresql/data/"
     ]
@@ -285,8 +287,22 @@ def get_docker_compose():
         'build': {'context': 'chemcurator_vuejs'},
         'env_file': [".env"],
         'ports': ["${EXT_VUE_APP_PORT}:8080"],
-        'command': ["npm", "run", "serve"]
+        'command': ["npm", "run", "serve"],
     }
+
+    # add ketcher service
+    dc['services']['chemreg-ketcher'] = {
+        'build': {'context': 'chemcurator_vuejs/ketcher'},
+        'env_file': [".env"],
+        'ports': ["${EXT_KETCHER_PORT}:8002"],
+    }
+    # doesn't work because it's licensed software, image pull requires auth
+    # # add marvin service
+    # dc['services']['chemreg-marvin'] = {
+    #     'build': {'context': 'chemcurator_vuejs/marvin'},
+    #     'env_file': [".env"],
+    #     'ports': ["${EXT_MARVIN_PORT}:80"],
+    # }
 
     for service in dc['services']:
         dc['services'][service].pop('restart', None)
@@ -298,13 +314,14 @@ def get_docker_compose():
     for service in dc['services']:
         # disable services, currently no services are disabled
         if service not in (
-            'postgresql',
             'chemreg-api',
+            'chemreg-ketcher',
             'chemreg-ui',
+            'db',  # resolver DB
             'pgbouncer',
+            'postgresql',  # chemreg DB
             'redis',
-            'web',   # resolver
-            'db',    # resolver db
+            'web',  # resolver
         ):
             print(f"Deactivating {service}")
             dc['services'][service]['entrypoint'] = 'date'
