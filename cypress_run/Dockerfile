@@ -1,4 +1,4 @@
-FROM cypress/included:3.4.0
+FROM node:15.5.1-buster
 
 # prevent time zone config. asking questions
 ARG DEBIAN_FRONTEND=noninteractive
@@ -22,23 +22,25 @@ RUN apt-get update || true \
 
 # START: build steps from chemcurator_vuejs/Dockerfile
 
-# install simple http server for serving static content
-RUN npm install -g http-server
-
 # make the 'app' folder the current working directory
 WORKDIR /app
+RUN chown $USERNAME.$GROUPNAME /app
+USER $USERNAME
+
+# install simple http server for serving static content
+RUN npm install http-server
 
 # copy both 'package.json' and 'package-lock.json' (if available)
-COPY chemcurator_vuejs/package*.json ./
+COPY chemcurator_vuejs/package*.json /app/
 
 # install project dependencies
 RUN npm install
 
 # copy project files and folders to the current working directory (i.e. 'app' folder)
-COPY chemcurator_vuejs/ .
+COPY chemcurator_vuejs/ /app/
 
 # build app for production with minification
-RUN npm run build
+# RUN npm run build
 
 # END: build steps from chemcurator_vuejs/Dockerfile
 
