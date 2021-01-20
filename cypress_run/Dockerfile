@@ -1,4 +1,4 @@
-FROM node:15.5.1-buster
+FROM debian
 
 # prevent time zone config. asking questions
 ARG DEBIAN_FRONTEND=noninteractive
@@ -13,12 +13,13 @@ ARG PASSWORD=Cypress
 # https://github.com/moby/moby/issues/5419
 RUN apt-get update || true \
  && apt-get install -y git mc aptitude tig xterm lynx \
-                       iproute2 openssh-server screen \
+                       iproute2 openssh-server screen nodejs \
  && groupadd -g $GROUP_ID $GROUPNAME \
  && useradd -l -u $USER_ID -g $GROUPNAME -m $USERNAME \
  && echo $USERNAME:$PASSWORD | chpasswd \
  && mkdir /run/sshd
 
+RUN apt-get install -y npm
 
 # START: build steps from chemcurator_vuejs/Dockerfile
 
@@ -45,4 +46,7 @@ COPY chemcurator_vuejs/ /app/
 # END: build steps from chemcurator_vuejs/Dockerfile
 
 # run in non-daemon mode
+USER root
+RUN apt-get install -y libxcursor1 libnss3 libgdk-pixbuf2.0-0 libgtk-3-dev \
+    libxss-dev libasound2-dev
 ENTRYPOINT ["/usr/sbin/sshd", "-D"]
