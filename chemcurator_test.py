@@ -181,6 +181,7 @@ def get_exposed_ports():
         'EXT_DJANGO_API_PORT',
         'EXT_DJANGO_ADMIN_PORT',
         'EXT_KETCHER_PORT',
+        'EXT_CYPRESS_SSH_PORT',
         # 'EXT_MARVIN_PORT',  # can't pull image without auth
     ]
 
@@ -253,6 +254,14 @@ def get_docker_compose():
                     'POSTGRES_PASSWORD': "${SQL_PASSWORD}",
                     'POSTGRES_DB': "${SQL_DATABASE}",
                 },
+            },
+            'chemreg-cypress': {
+                'build': {
+                    'context': "./cypress_run/"
+                },
+                'ports': [
+                    "${EXT_CYPRESS_SSH_PORT}:22",
+                ],
             }
         },
     }
@@ -320,6 +329,7 @@ def get_docker_compose():
         if service not in (
             'chemreg-admin',
             'chemreg-api',
+            'chemreg-cypress',
             'chemreg-ketcher',
             'chemreg-marvin',
             'chemreg-ui',
