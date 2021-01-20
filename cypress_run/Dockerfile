@@ -1,4 +1,4 @@
-FROM tbrown02_cr_chemreg-ui
+FROM cypress/included:3.4.0
 
 # prevent time zone config. asking questions
 ARG DEBIAN_FRONTEND=noninteractive
@@ -9,19 +9,38 @@ ARG USERNAME=tbrown02
 ARG GROUPNAME=analysis
 ARG PASSWORD=Cypress
 
-# Cypress requires xvfb
-RUN apk add git mc tig xterm lynx xvfb \
-            iproute2 openssh-server screen xauth
-RUN addgroup -g $GROUP_ID $GROUPNAME \
- && adduser -D -u $USER_ID -G $GROUPNAME $USERNAME \
+# -l in useradd needed to avoid some large sparse log file
+# https://github.com/moby/moby/issues/5419
+RUN apt-get update || true \
+ && apt-get install -y git mc aptitude tig xterm lynx \
+                       iproute2 openssh-server screen \
+ && groupadd -g $GROUP_ID $GROUPNAME \
+ && useradd -l -u $USER_ID -g $GROUPNAME -m $USERNAME \
  && echo $USERNAME:$PASSWORD | chpasswd \
- && mkdir /run/sshd \
- && ssh-keygen -A \
- && sed -i 's/X11Forwarding no/X11Forwarding yes/' /etc/ssh/sshd_config \
- && sed -i 's/GatewayPorts no/GatewayPorts yes/' /etc/ssh/sshd_config \
- && sed -i 's/AllowTcpForwarding no/AllowTcpForwarding yes/' /etc/ssh/sshd_config \
- && sed -i 's/#X11UseLocalhost yes/X11UseLocalhost no/' /etc/ssh/sshd_config
+ && mkdir /run/sshd
 
-COPY run.sh /
-# run in daemon mode
-CMD ["sh", "/run.sh"]
+
+# START: build steps from chemcurator_vuejs/Dockerfile
+
+# install simple http server for serving static content
+RUN npm install -g http-server
+
+# make the 'app' folder the current working directory
+WORKDIR /app
+
+# copy both 'package.json' and 'package-lock.json' (if available)
+COPY chemcurator_vuejs/package*.json ./
+
+# install project dependencies
+RUN npm install
+
+# copy project files and folders to the current working directory (i.e. 'app' folder)
+COPY chemcurator_vuejs/ .
+
+# build app for production with minification
+RUN npm run build
+
+# END: build steps from chemcurator_vuejs/Dockerfile
+
+# run in non-daemon mode
+ENTRYPOINT ["/usr/sbin/sshd", "-D"]
