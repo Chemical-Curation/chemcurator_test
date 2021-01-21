@@ -42,7 +42,7 @@ chemreg-cypress 30008->22, 30009->8080
 chemreg-ui      30004->8080
 pgbouncer   
 ```
-<username>_cr_ is prepended to images / containers to avoid conflicts with
+`<username>_cr_` is prepended to images / containers to avoid conflicts with
 other users.
 
 The `chemreg-cypress` is only for testing.
