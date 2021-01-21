@@ -11,6 +11,13 @@ token, so {auth} is replaced with `<githubuser>:<accesstoken>`.
 chemcurator_test_config.py should not be shared or committed to version
 control.  BASE_PORT can be any port number, 9000 or 39000 or whatever.
 
+`chemcurator_test.py` is a "bash script" written in Python which merges the
+docker-compose.yml and template.env files for chemcurator_django and resolver
+and adds entries for chemcurator_vuejs.  It may handle branch management for
+testing later, but for now it's basically just merging.  You provide a base
+port number X in chemcurator_test_config.py and the code assigns X, X+1, etc.
+as required as host ports exposing container ports.
+
 Assuming you have Python 3
 ```shell
 python -m venv venv
@@ -37,6 +44,24 @@ python manage.py loaddata chemreg/fixtures/lists.yaml
 these changes should persist until the persistent DB volume is destroyed, so
 not needed often.
 
+The following containers are launched by default:
+```
+web             <- resolver
+chemreg-admin   30006->8000
+chemreg-api     30005->8000
+db              <- resolver
+chemreg-ketcher 30007->8002
+postgresql      <- ChemReg DB
+redis
+chemreg-cypress 30008->22, 30009->8080
+chemreg-ui      30004->8080
+pgbouncer   
+```
+<username>_cr_ is prepended to images / containers to avoid conflicts with
+other users.
+
+The `chemreg-cypress` is only for testing.
+
 ## Working
 
 chemcurator_test.py builds a usable .env and docker-compose.yml for deploying
@@ -44,9 +69,9 @@ all ChemReg components in a single docker network.
 
 ## To do
 
- - add ketcher
- - revisit chemcurator_test.py subcommands for managing branches for testing
- etc.
+ [x] add ketcher
+ [ ] revisit chemcurator_test.py subcommands for managing branches for testing
+     etc.
 
 ### chemcurator_vuejs notes
 
