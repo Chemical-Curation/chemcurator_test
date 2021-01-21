@@ -29,21 +29,6 @@ docker-compose build
 docker-compose up
 ```
 
-## (Currently) manual steps
-
-After bringing everything up,
-```shell
-docker-compose exec chemreg-api bash
-python manage.py migrate
-# compounds < substances < lists order matters
-python manage.py loaddata chemreg/fixtures/users.yaml
-python manage.py loaddata chemreg/fixtures/compounds.yaml
-python manage.py loaddata chemreg/fixtures/substances.yaml
-python manage.py loaddata chemreg/fixtures/lists.yaml
-```
-these changes should persist until the persistent DB volume is destroyed, so
-not needed often.
-
 The following containers are launched by default:
 ```
 web             <- resolver
@@ -61,6 +46,21 @@ pgbouncer
 other users.
 
 The `chemreg-cypress` is only for testing.
+
+## (Currently) manual steps
+
+After bringing everything up,
+```shell
+docker-compose exec chemreg-api bash
+python manage.py migrate
+# compounds < substances < lists order matters
+python manage.py loaddata chemreg/fixtures/users.yaml
+python manage.py loaddata chemreg/fixtures/compounds.yaml
+python manage.py loaddata chemreg/fixtures/substances.yaml
+python manage.py loaddata chemreg/fixtures/lists.yaml
+```
+these changes should persist until the persistent DB volume is destroyed, so
+not needed often.
 
 ## Working
 
