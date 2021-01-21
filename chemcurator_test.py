@@ -182,6 +182,7 @@ def get_exposed_ports():
         'EXT_DJANGO_ADMIN_PORT',
         'EXT_KETCHER_PORT',
         'EXT_CYPRESS_SSH_PORT',
+        'EXT_CYPRESS_UI_PORT',
         # 'EXT_MARVIN_PORT',  # can't pull image without auth
     ]
 
@@ -213,6 +214,7 @@ def get_env():
     env.append(f"ADMIN_SECRET_KEY={secret()}")
     env.append(f"API_SECRET_KEY={secret()}")
     env.append(f"SECRET_KEY={secret()}")
+    env.append("WHITELIST_HOST=chemreg-api:8000")
     return env
 
 
@@ -257,12 +259,21 @@ def get_docker_compose():
             },
             'chemreg-cypress': {
                 'build': {
-                    'context': "./cypress_run/"
+                    'context': "./cypress_run/",
+                    'args': {
+                        'VUE_APP_API_URL': "http://chemreg-api:8000",
+                        'VUE_APP_KETCHER_URL': "http://chemreg-ketcher:8002",
+                    },
+                },
+                'env_file': [".env"],
+                'environment': {
+                    'WHITELIST_HOST': "chemreg-api",
                 },
                 'ports': [
                     "${EXT_CYPRESS_SSH_PORT}:22",
+                    "${EXT_CYPRESS_UI_PORT}:8080",
                 ],
-            }
+            },
         },
     }
 
