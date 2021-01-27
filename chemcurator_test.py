@@ -244,6 +244,27 @@ def get_docker_compose():
     # load and heavily edit docker-compose.ymls
     dc = {
         'services': {
+            # add chemcurator_vuejs service
+            'chemreg-ui': {
+                'build': {'context': 'chemcurator_vuejs'},
+                'env_file': [".env"],
+                'ports': ["${EXT_VUE_APP_PORT}:8080"],
+                'command': ["npm", "run", "serve"],
+            },
+            # add ketcher service
+            'chemreg-ketcher': {
+                'build': {'context': 'chemcurator_vuejs/ketcher'},
+                'env_file': [".env"],
+                'ports': ["${EXT_KETCHER_PORT}:8002"],
+            },
+            # doesn't work because licensed software, image pull needs auth
+            # # add marvin service
+            # 'chemreg-marvin': {
+            #     'build': {'context': 'chemcurator_vuejs/marvin'},
+            #     'env_file': [".env"],
+            #     'ports': ["${EXT_MARVIN_PORT}:80"],
+            # },
+            #
             # Not included in django / resolver compositions, this is the
             # main DB, resolver has it's own.
             'postgresql': {
@@ -305,28 +326,6 @@ def get_docker_compose():
         "${EXT_DJANGO_ADMIN_PORT}:8000"
     ]
     dc['services']['chemreg-api']['ports'] = ["${EXT_DJANGO_API_PORT}:8000"]
-
-    # add chemcurator_vuejs service
-    dc['services']['chemreg-ui'] = {
-        'build': {'context': 'chemcurator_vuejs'},
-        'env_file': [".env"],
-        'ports': ["${EXT_VUE_APP_PORT}:8080"],
-        'command': ["npm", "run", "serve"],
-    }
-
-    # add ketcher service
-    dc['services']['chemreg-ketcher'] = {
-        'build': {'context': 'chemcurator_vuejs/ketcher'},
-        'env_file': [".env"],
-        'ports': ["${EXT_KETCHER_PORT}:8002"],
-    }
-    # doesn't work because it's licensed software, image pull requires auth
-    # # add marvin service
-    # dc['services']['chemreg-marvin'] = {
-    #     'build': {'context': 'chemcurator_vuejs/marvin'},
-    #     'env_file': [".env"],
-    #     'ports': ["${EXT_MARVIN_PORT}:80"],
-    # }
 
     for service in dc['services']:
         dc['services'][service].pop('restart', None)
